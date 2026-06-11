@@ -52,6 +52,26 @@ def render_sidebar() -> tuple[str, str, int]:
                 )
             )
 
+        st.markdown("<div style='flex:1'></div>", unsafe_allow_html=True)
+        st.markdown("---")
+        st.markdown(
+            f"<div style='"
+            f"text-align:center;"
+            f"font-family:Fraunces,serif;"
+            f"font-size:0.72rem;"
+            f"color:{PALETTE['muted']};"
+            f"letter-spacing:0.04em;"
+            f"line-height:1.6;"
+            f"padding-bottom:0.5rem"
+            f"'>"
+            f"Developed by<br>"
+            f"<span style='font-size:0.85rem;color:{PALETTE['text']};font-style:italic'>"
+            f"Jordan M. Zlatin"
+            f"</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
     return region, view_mode, baseline_year
 
 
@@ -63,10 +83,11 @@ def render_crisis_buttons() -> tuple[date, date] | None:
         (start, end) date tuple when a button is clicked, else None.
     """
     cols = st.columns(len(CRISIS_WINDOWS))
+    clicked: tuple[date, date] | None = None
     for col, (label, (start, end)) in zip(cols, CRISIS_WINDOWS.items()):
         if col.button(label, use_container_width=True):
-            return start, end
-    return None
+            clicked = (start, end)
+    return clicked
 
 
 def render_metric_grid(corr_result: CorrelationResult) -> None:

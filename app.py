@@ -35,6 +35,29 @@ if "date_start" not in st.session_state:
 if "date_end" not in st.session_state:
     st.session_state["date_end"] = date.today()
 
+with st.expander("What is this?", expanded=False):
+    st.markdown(
+        """
+**Global liquidity** is the total amount of money sloshing around the world's financial system.
+The biggest driver is central banks: when a central bank like the Federal Reserve buys bonds,
+it creates new money and its balance sheet grows — that's *expansion*. When it sells bonds or
+lets them mature, money is destroyed and the balance sheet shrinks — that's *contraction*.
+
+More liquidity tends to push asset prices up because investors have more cash to put to work.
+Less liquidity tends to pull prices down as that cash gets withdrawn.
+
+**This tracker plots each central bank's total assets alongside its regional stock index** so you
+can see that relationship play out over time. The dual-axis view keeps both series on the same
+chart with independent scales. Switch to *Rebased* to normalize both to 100 at a common start
+date for a cleaner percentage-change comparison.
+
+The **rolling correlation panel** below the main chart shows how tightly the two series have
+moved together over the last 30, 90, and 360 days. A positive number means they've been rising
+and falling together; a negative number means they've been moving in opposite directions.
+        """,
+        unsafe_allow_html=False,
+    )
+
 crisis_range = render_crisis_buttons()
 if crisis_range:
     st.session_state["date_start"], st.session_state["date_end"] = crisis_range
