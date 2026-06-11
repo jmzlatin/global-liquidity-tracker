@@ -85,7 +85,7 @@ def render_crisis_buttons() -> tuple[date, date] | None:
     cols = st.columns(len(CRISIS_WINDOWS))
     clicked: tuple[date, date] | None = None
     for col, (label, (start, end)) in zip(cols, CRISIS_WINDOWS.items()):
-        if col.button(label, use_container_width=True):
+        if col.button(label, width="stretch"):
             clicked = (start, end)
     return clicked
 

@@ -132,7 +132,7 @@ else:
         df, cb_label, eq_label, segments, plotly_template, cb_axis_title, eq_axis_title
     )
 
-st.plotly_chart(fig_main, use_container_width=True)
+st.plotly_chart(fig_main, width="stretch")
 
 _text = PALETTE["text"]
 st.markdown(
@@ -142,4 +142,4 @@ st.markdown(
 )
 render_metric_grid(corr_result)
 fig_corr = build_correlation_chart(corr_result, plotly_template)
-st.plotly_chart(fig_corr, use_container_width=True)
+st.plotly_chart(fig_corr, width="stretch")

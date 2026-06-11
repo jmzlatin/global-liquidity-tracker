@@ -87,7 +87,8 @@ def build_dual_axis_chart(
     fig.update_layout(
         template=template,
         hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        modebar=dict(orientation="v"),
     )
     fig.update_yaxes(
         title_text=cb_axis_title,
@@ -149,7 +150,8 @@ def build_rebased_chart(
         template=template,
         yaxis_title="Index (Base = 100)",
         hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        modebar=dict(orientation="v"),
     )
     return fig
 
@@ -197,7 +199,8 @@ def build_correlation_chart(
         yaxis=dict(title="Correlation", range=[-1.1, 1.1]),
         height=200,
         hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        modebar=dict(orientation="v"),
         margin=dict(t=24, b=40, l=64, r=48),
     )
     return fig
