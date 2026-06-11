@@ -7,7 +7,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-from config.settings import EQUITY_TICKERS, FRED_SERIES, PALETTE
+from config.settings import EQUITY_TICKERS, FRED_SERIES, MILLIONS_PER_TRILLION, PALETTE
 from src.ingestion.cache import get_series
 from src.ingestion.equity_client import fetch_equity
 from src.ingestion.fred_client import fetch_series
@@ -100,14 +100,21 @@ if df.empty:
 segments = compute_regimes(df["cb"])
 corr_result = compute_correlation(df["cb"], df["eq"])
 
+# FRED reports balance sheets in millions; convert to trillions for display.
+# Safe to do before plotting: regimes (slope sign), correlation (pct_change),
+# and rebase-to-100 are all scale-invariant.
+df["cb"] = df["cb"] / MILLIONS_PER_TRILLION
+
 cb_label = FRED_SERIES[region]["label"]
 eq_label = EQUITY_TICKERS[region]["label"]
 currency = FRED_SERIES[region]["currency"]
+cb_axis_title = f"Total Assets (Trillions {currency})"
+eq_axis_title = f"{eq_label} (Index)"
 
 st.markdown(f"## {region} — {cb_label} vs {eq_label}")
 st.markdown(
     f"<span style='font-size:0.82rem;color:{PALETTE['muted']};font-family:IBM Plex Sans,sans-serif'>"
-    f"Central bank data in {currency} · {eq_label} · "
+    f"Central bank assets in trillions {currency} · {eq_label} index level · "
     f"{date_start.strftime('%b %d, %Y')} – {date_end.strftime('%b %d, %Y')}"
     f"</span>",
     unsafe_allow_html=True,
@@ -121,7 +128,9 @@ if view_mode == "Rebased":
         st.error(str(exc))
         st.stop()
 else:
-    fig_main = build_dual_axis_chart(df, cb_label, eq_label, segments, plotly_template)
+    fig_main = build_dual_axis_chart(
+        df, cb_label, eq_label, segments, plotly_template, cb_axis_title, eq_axis_title
+    )
 
 st.plotly_chart(fig_main, use_container_width=True)
 

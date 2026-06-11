@@ -38,6 +38,8 @@ def build_dual_axis_chart(
     eq_label: str,
     segments: list[RegimeSegment],
     template: go.layout.Template,
+    cb_axis_title: str = "Total Assets",
+    eq_axis_title: str = "Index Level",
 ) -> go.Figure:
     """
     Build a dual y-axis chart with regime shading.
@@ -47,10 +49,13 @@ def build_dual_axis_chart(
 
     Args:
         df: DataFrame with 'cb' and 'eq' columns and a daily DatetimeIndex.
-        cb_label: Display name for the central bank series.
-        eq_label: Display name for the equity series.
+            'cb' is expected pre-scaled to its display unit (e.g. trillions).
+        cb_label: Display name for the central bank series (legend + hover).
+        eq_label: Display name for the equity series (legend + hover).
         segments: Regime segments for background shading.
         template: Plotly layout template.
+        cb_axis_title: Primary y-axis title, including the display unit.
+        eq_axis_title: Secondary y-axis title for the equity index.
 
     Returns:
         Plotly Figure.
@@ -64,7 +69,7 @@ def build_dual_axis_chart(
             y=df["cb"],
             name=cb_label,
             line=dict(color=PALETTE["brass"], width=2),
-            hovertemplate="%{x|%Y-%m-%d}: %{y:,.0f}<extra>" + cb_label + "</extra>",
+            hovertemplate="%{x|%Y-%m-%d}: %{y:,.3f}<extra>" + cb_label + "</extra>",
         ),
         secondary_y=False,
     )
@@ -85,14 +90,14 @@ def build_dual_axis_chart(
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     fig.update_yaxes(
-        title_text=cb_label,
+        title_text=cb_axis_title,
         secondary_y=False,
         gridcolor=PALETTE["muted"],
         gridwidth=0.5,
         tickfont=dict(family="IBM Plex Mono, monospace", color=PALETTE["muted"], size=11),
     )
     fig.update_yaxes(
-        title_text=eq_label,
+        title_text=eq_axis_title,
         secondary_y=True,
         gridcolor=PALETTE["muted"],
         gridwidth=0.5,

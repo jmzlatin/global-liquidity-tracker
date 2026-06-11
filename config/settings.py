@@ -59,6 +59,12 @@ CORRELATION_WINDOWS: list[int] = [30, 90, 360]
 
 DEFAULT_BASELINE_YEAR: int = 2015
 
+# ── Display units ─────────────────────────────────────────────────────────────
+# FRED reports every central bank balance sheet in MILLIONS of local currency.
+# Dividing by this factor converts those raw millions to trillions for display,
+# so the y-axis reads e.g. "6.7" Trillions USD instead of an ambiguous "7M".
+MILLIONS_PER_TRILLION: int = 1_000_000
+
 # ── Crisis bookmark windows ───────────────────────────────────────────────────
 
 CRISIS_WINDOWS: dict[str, tuple[date, date]] = {
