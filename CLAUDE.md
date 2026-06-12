@@ -39,6 +39,8 @@ global-liquidity-tracker/
   app.py                 # Streamlit entry, thin orchestration only
   config/
     settings.py          # series IDs, tickers, crisis windows, palette, constants
+  TASKS_UI.md            # UI elevation task plan
+  docs/                  # screenshots and supporting docs
   src/
     ingestion/
       fred_client.py     # FRED REST calls
@@ -48,8 +50,9 @@ global-liquidity-tracker/
       normalize.py       # merge, forward-fill, rebase to 100
       regimes.py         # 90-day slope, expansion/contraction segments
       correlation.py     # rolling 30/90/360 correlation
+      summary.py         # KpiSummary dataclass; computes KPIs from processed data
     ui/
-      theme.py           # CSS injection, Plotly template
+      theme.py           # CSS injection, animations, Plotly template
       charts.py          # dual-axis chart builder, regime shading
       components.py      # sidebar, metric grid, crisis buttons
   data/
@@ -59,6 +62,7 @@ global-liquidity-tracker/
     test_normalize.py
     test_regimes.py
     test_correlation.py
+    test_summary.py
 ```
 
 ## Layer boundaries (enforce these)
@@ -155,9 +159,15 @@ Define in `config/settings.py` as constants. A button sets the chart date range 
 | 2023 regional bank stress | 2023-03-01 | 2023-06-30 |
 | Full history | min date | max date |
 
+## KPI summary module
+
+`src/processing/summary.py` exposes `KpiSummary`, a frozen dataclass computed from the processed dataframe and analysis results. It lives in the processing layer — not the UI — so the UI just reads `.cb_latest`, `.eq_change_90d_pct`, etc. without doing any math itself.
+
+Fields: `cb_latest`, `cb_change_90d_pct`, `eq_latest`, `eq_change_90d_pct`, `regime_label`, `peak_correlation`. All floats or strings; no Streamlit or Plotly imports allowed in this module.
+
 ## Design direction
 
-Do not ship the default Streamlit look. No wall of blue. The target feel is a quiet financial terminal printed on warm paper, with brass and verdigris as the two data colors.
+The UI elevation pass is complete. The app now reads as a designed financial terminal on warm paper. Do not revert toward Streamlit defaults.
 
 Palette "Brass and Verdigris on Paper":
 
@@ -184,16 +194,17 @@ textColor = "#20232A"
 font = "serif"
 ```
 
-Typography and finish, applied through CSS injection in `ui/theme.py`:
+Typography and CSS — implemented in `ui/theme.py`:
 
-- Headings in a warm serif. Load Fraunces or Spectral from Google Fonts via an injected `<link>`.
-- Body in a clean sans. IBM Plex Sans works well with the palette.
-- Metric values in a monospace face (IBM Plex Mono) for the terminal feel.
-- Rounded corners on panels, a thin `#9A968C` hairline border, generous padding.
-- Custom button styling: brass fill on hover, ink text, no default Streamlit red.
-- Build one Plotly template in `ui/theme.py` and apply it to every figure so colors, fonts, and grid lines stay consistent.
+- Fraunces (warm serif) for headings, IBM Plex Sans for body, IBM Plex Mono for metric values.
+- CSS animations: `fadeUp`, `fadeIn`, `drawRule`, `pulse`, `breathe`, `sheen` — applied to headers, metric cards, and buttons. Do not remove these.
+- Radial gradient background wash (brass top-left, verdigris top-right) on the app root.
+- Rounded corners, `#9A968C` hairline borders, generous padding on all panels.
+- Crisis bookmark buttons styled with brass fill on active/hover.
+- One Plotly template in `ui/theme.py` (`build_plotly_template()`) applied to every figure. Never set Plotly colors or fonts ad-hoc — update the template instead.
+- Central bank asset values displayed in trillions (divide raw millions by 1,000,000) with explicit "T" suffix on axis labels.
 
-Optional second theme: a dark "terminal" variant on `#16181D` with the same brass and verdigris accents. Build the app so swapping the palette dict in `config/settings.py` switches the whole look.
+Optional second theme: a dark "terminal" variant on `#16181D` with the same brass and verdigris accents. `config/settings.py` holds `PALETTE`; swapping that dict switches the whole look.
 
 ## Commands
 
