@@ -13,8 +13,8 @@ from config.settings import CORRELATION_WINDOWS
 class CorrelationResult:
     """Latest rolling correlation values and the full rolling series."""
 
-    latest: dict[int, float]         # window → latest correlation coefficient
-    rolling: dict[int, pd.Series]    # window → full rolling correlation series
+    latest: dict[int, float]  # window → latest correlation coefficient
+    rolling: dict[int, pd.Series]  # window → full rolling correlation series
 
 
 def compute_correlation(

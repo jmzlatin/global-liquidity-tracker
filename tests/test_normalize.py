@@ -13,7 +13,9 @@ def _weekly(start: str, periods: int, values: list[float]) -> pd.Series:
 
 
 def _daily(start: str, n: int) -> pd.Series:
-    return pd.Series(range(n), index=pd.date_range(start, periods=n, freq="D"), dtype=float)
+    return pd.Series(
+        range(n), index=pd.date_range(start, periods=n, freq="D"), dtype=float
+    )
 
 
 def test_merge_and_ffill_columns_present():
@@ -53,7 +55,9 @@ def test_merge_and_ffill_drops_leading_nans():
 
 def test_rebase_to_100_anchor_is_100():
     idx = pd.date_range("2015-01-01", periods=100, freq="D")
-    df = pd.DataFrame({"cb": range(1, 101), "eq": range(100, 200)}, index=idx, dtype=float)
+    df = pd.DataFrame(
+        {"cb": range(1, 101), "eq": range(100, 200)}, index=idx, dtype=float
+    )
     rebased = rebase_to_100(df, 2015)
     assert rebased["cb"].iloc[0] == pytest.approx(100.0)
     assert rebased["eq"].iloc[0] == pytest.approx(100.0)

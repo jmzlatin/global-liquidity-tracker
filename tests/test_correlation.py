@@ -24,6 +24,7 @@ def _random_walk(n: int, seed: int = 42) -> np.ndarray:
 
 # ── basic shape and types ─────────────────────────────────────────────────────
 
+
 def test_returns_correlation_result():
     s = _series(_random_walk(400))
     result = compute_correlation(s, s)
@@ -39,6 +40,7 @@ def test_result_keys_match_windows():
 
 
 # ── empty / insufficient data ─────────────────────────────────────────────────
+
 
 def test_empty_series_returns_nan_latest():
     cb = _series([])
@@ -63,6 +65,7 @@ def test_insufficient_data_returns_nan():
 
 
 # ── known-value cases ─────────────────────────────────────────────────────────
+
 
 def test_identical_series_correlation_is_one():
     values = _random_walk(400)

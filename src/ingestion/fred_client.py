@@ -12,12 +12,14 @@ def _get_api_key() -> str:
     """Read FRED API key from st.secrets (Streamlit Cloud) or environment/.env."""
     try:
         import streamlit as st
+
         return st.secrets["FRED_API_KEY"]
     except Exception:
         pass
 
     try:
         from dotenv import load_dotenv
+
         load_dotenv()
     except ImportError:
         pass

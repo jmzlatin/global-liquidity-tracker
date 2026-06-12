@@ -77,9 +77,13 @@ def compute_regimes(
 
     for date, label in signs.iloc[1:].items():
         if label != current_label:
-            segments.append(RegimeSegment(start=seg_start, end=date, label=current_label))
+            segments.append(
+                RegimeSegment(start=seg_start, end=date, label=current_label)
+            )
             seg_start = date
             current_label = label
 
-    segments.append(RegimeSegment(start=seg_start, end=signs.index[-1], label=current_label))
+    segments.append(
+        RegimeSegment(start=seg_start, end=signs.index[-1], label=current_label)
+    )
     return segments

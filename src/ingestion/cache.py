@@ -54,6 +54,11 @@ def _read_csv(csv: Path, series_id: str) -> pd.Series:
     return series
 
 
+def read_manifest(cache_dir: str = CACHE_DIR) -> dict:
+    """Return the raw manifest dict — for display purposes only, no I/O side effects."""
+    return _load_manifest(Path(cache_dir))
+
+
 def get_series(
     series_id: str,
     fetcher: Callable[[], pd.Series],
@@ -89,9 +94,9 @@ def get_series(
     try:
         series = fetcher()
         series.to_csv(csv, header=True)
-        manifest.setdefault(series_id, {})["fetched_at"] = (
-            datetime.now(tz=timezone.utc).isoformat()
-        )
+        manifest.setdefault(series_id, {})["fetched_at"] = datetime.now(
+            tz=timezone.utc
+        ).isoformat()
         _save_manifest(root, manifest)
         return series, False
     except Exception as exc:

@@ -16,6 +16,7 @@ def _series(values: list[float] | np.ndarray, start: str = "2020-01-01") -> pd.S
 
 # ── _rolling_slope ────────────────────────────────────────────────────────────
 
+
 def test_rolling_slope_positive():
     # Linear increase: slope = 1.0
     s = _series(np.arange(10, dtype=float))
@@ -44,6 +45,7 @@ def test_rolling_slope_leading_nans():
 
 
 # ── compute_regimes ───────────────────────────────────────────────────────────
+
 
 def test_compute_regimes_empty():
     assert compute_regimes(pd.Series([], dtype=float)) == []

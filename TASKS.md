@@ -142,6 +142,13 @@ This phase exists so the app reads as a designed product, not a default dashboar
 
 ---
 
+## Phase 8: UI elevation pass
+
+See [TASKS_UI.md](TASKS_UI.md) — a detailed, task-by-task portfolio-grade UI
+overhaul (hero header, KPI cards, chart finish, dark terminal variant, and more).
+
+---
+
 ## Suggested build order
 
 Phases run in sequence. Inside a phase, tasks can interleave. Build a thin vertical slice first: one region, FRED plus yfinance, one plain chart. Confirm the data pipeline before investing in the design pass. Save Phase 6 for last so polish lands on a working app.

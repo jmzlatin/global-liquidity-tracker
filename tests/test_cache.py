@@ -14,6 +14,7 @@ from src.ingestion.cache import get_series
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
+
 def _make_series(name: str = "TEST") -> pd.Series:
     idx = pd.date_range("2020-01-01", periods=5, freq="D")
     return pd.Series([1.0, 2.0, 3.0, 4.0, 5.0], index=idx, name=name)
@@ -23,7 +24,9 @@ def _ts(hours_ago: float = 0) -> str:
     return (datetime.now(tz=timezone.utc) - timedelta(hours=hours_ago)).isoformat()
 
 
-def _seed_cache(cache_dir: Path, series_id: str, series: pd.Series, fetched_at: str) -> None:
+def _seed_cache(
+    cache_dir: Path, series_id: str, series: pd.Series, fetched_at: str
+) -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
     safe_name = series_id.replace("^", "").replace("/", "_")
     series.to_csv(cache_dir / f"{safe_name}.csv", header=True)
@@ -32,6 +35,7 @@ def _seed_cache(cache_dir: Path, series_id: str, series: pd.Series, fetched_at: 
 
 
 # ── fresh cache ───────────────────────────────────────────────────────────────
+
 
 def test_fresh_cache_skips_fetcher(tmp_path):
     cache_dir = tmp_path / "cache"
@@ -52,6 +56,7 @@ def test_fresh_cache_skips_fetcher(tmp_path):
 
 
 # ── stale cache ───────────────────────────────────────────────────────────────
+
 
 def test_stale_cache_calls_fetcher(tmp_path):
     cache_dir = tmp_path / "cache"
@@ -84,6 +89,7 @@ def test_stale_fetch_failure_returns_stale_flag(tmp_path):
 
 
 # ── missing cache ─────────────────────────────────────────────────────────────
+
 
 def test_missing_cache_calls_fetcher(tmp_path):
     cache_dir = tmp_path / "cache"
@@ -125,6 +131,7 @@ def test_no_cache_and_fetch_failure_raises(tmp_path):
 
 
 # ── ticker sanitization ───────────────────────────────────────────────────────
+
 
 def test_caret_ticker_sanitized_to_safe_filename(tmp_path):
     cache_dir = tmp_path / "cache"

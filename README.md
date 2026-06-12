@@ -7,6 +7,11 @@ as interactive dual-axis charts with regime shading and rolling correlation.
 Pick a region, see the chart. The app caches everything locally so repeat runs
 load instantly and stay under FRED and yfinance rate limits.
 
+![Paper theme — Fed balance sheet vs S&P 500](docs/screenshot-paper.png)
+*Paper theme. A dark "Terminal" variant ships too:*
+
+![Terminal theme](docs/screenshot-terminal.png)
+
 ## Features
 
 - **Dual-axis chart** — central bank total assets (brass) against the regional
