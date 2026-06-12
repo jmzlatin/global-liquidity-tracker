@@ -111,6 +111,22 @@ The UI layer never calls an external API: UI → processing → ingestion → ne
 4. Deploy. All three regions render on the public URL; the cache works on the
    host. Never commit `.env` or `.streamlit/secrets.toml` — both are gitignored.
 
+### Python version
+
+This app targets **Python 3.11–3.12**. A `runtime.txt` (`python-3.12`) records
+that intent. Note that Community Cloud currently selects the Python version from
+the **Advanced settings** dialog at deploy time and may ignore `runtime.txt`; if
+the build lands on a newer interpreter (e.g. 3.14) before all dependency wheels
+exist, **delete and redeploy** the app and pick 3.12 in Advanced settings.
+
+### Troubleshooting: `ImportError: cannot import name ... from 'config.settings'`
+
+This means Community Cloud is serving a **stale build** from an older commit
+whose `config/settings.py` predates a constant that `app.py` now imports — the
+repository itself is consistent. Force a clean rebuild from the latest commit:
+open the app, choose **Manage app → ⋮ → Reboot app**. If it persists, delete the
+app and redeploy from `main`.
+
 ## License
 
 See [LICENSE](LICENSE).
