@@ -1,15 +1,20 @@
-# ADR 0001 — Re-platform from Streamlit Community Cloud to Vercel
+# ADR 0001 — Add a Vercel frontend alongside Streamlit (shared backend, dual frontend)
 
 - **Status:** Accepted (Phase 0)
 - **Date:** 2026-06-14
 - **Deciders:** project owner + Claude Code
-- **Supersedes:** the Streamlit "Hosting" and "Tech stack" sections of `CLAUDE.md`
-  (those are rewritten in Phase 9.3, not here)
-- **Context doc:** `TASKS_VERCEL.md` (10-phase migration roadmap)
+- **Context doc:** `TASKS_VERCEL.md` (the migration roadmap; this ADR amends its
+  end state — see "Decision 6" below)
 
 This ADR records the decisions called for in **Phase 0.1** of `TASKS_VERCEL.md`
 and the results of the **Phase 0.2** feasibility spike. It is intentionally a
 single committed record so later phases have a fixed reference for "why".
+
+**Headline decision (amends the roadmap):** this is **not** a cutover. We run
+**Streamlit and Vercel/Next.js as two independent frontends over one shared
+backend, indefinitely** ("tandem"). The Streamlit app (`app.py`, `src/ui/*`,
+`.streamlit/`) is **kept**, not decommissioned. See Decision 6; this supersedes
+`TASKS_VERCEL.md` Phase 9.3 ("Decommission Streamlit").
 
 ---
 
@@ -79,14 +84,75 @@ to draw a region (central-bank series, equity series, regime segments,
 correlation block, KPI summary). `FRED_API_KEY` is read from `os.environ`; the
 `st.secrets` path in `fred_client._get_api_key()` is dropped in Phase 2.
 
-## Decision 5 — Repo layout & build order
+## Decision 5 — Repo layout: single root, both frontends import `src/` directly
 
-Next.js app at the **repo root** (Vercel Root Directory = repo root), `/api` for
-Python functions, existing `src/` kept and imported by `/api`. Follow the
-roadmap's suggested order: Phase 0 spike → thin vertical slice (one region,
-`/api/series` → minimal React chart, deployed to a preview) → full theme port →
-cutover. Do not invest in the full theme port (Phase 6) before the data path is
+**Single-root monorepo.** Vercel Root Directory = repo root. `app.py` + `src/ui/*`
+(Streamlit) and `api/*.py` + the Next.js app (Vercel) both live at the root and
+both `import` the shared `src/ingestion` + `src/processing` packages **directly**
+— no copy, no symlink, no sync step. This is what makes "a backend change hits
+both frontends" literally true (the alternative, a `web/` subfolder with its own
+Vercel Root Directory, would force `src/` to be vendored in and kept in sync;
+rejected for that reason).
+
+The cost of single-root is build-time disambiguation, handled in this phase:
+
+- **Vercel must ignore the Streamlit `app.py`.** Vercel's Python runtime
+  auto-detects a root `app.py`/`index.py`/`main.py` as a web-app entrypoint and
+  fails on Streamlit's `app.py` (no `app`/`handler` export — this is the build
+  error observed on the first deploy). Fixed with a `vercel.json` that pins the
+  classic `@vercel/python` builder to an explicit allowlist (`api/*.py`), which
+  disables zero-config detection so root `app.py` is never built by Vercel.
+- **Two dependency sets, one root.** Root `requirements.txt` stays the **fat**
+  Streamlit set (Streamlit Cloud installs from it). `api/requirements.txt` is the
+  **slim** serverless set (`pandas`, `numpy`, `requests`, `yfinance`) so the
+  Vercel function bundle does not ship `streamlit`/`plotly`. The `@vercel/python`
+  builder installs the `requirements.txt` adjacent to the function entrypoint.
+  *(Assumption to confirm on the next preview — see spike open items.)*
+
+**Build order:** Phase 0 spike → thin vertical slice (one region, `/api/series` →
+minimal React chart, preview deploy) → full theme port → both frontends live in
+tandem. Do not invest in the full theme port (Phase 6) before the data path is
 proven end-to-end on Vercel.
+
+## Decision 6 — Tandem operation is the end state (not a cutover)
+
+Streamlit and Vercel run as **two independent frontends over one shared backend,
+permanently**. This is possible because the layer boundaries in `CLAUDE.md`
+already keep `src/processing/*` (normalize, regimes, correlation, summary) and
+the pure parts of `src/ingestion/*` free of any Streamlit/Plotly import, so both
+frontends consume the exact same modules.
+
+```
+                 src/processing/*   ← single source of truth (pure pandas/numpy)
+                       ▲      ▲
+         ┌─────────────┘      └──────────────┐
+   app.py + src/ui/*                     api/*.py + Next.js
+   (Streamlit Cloud)                     (Vercel)
+```
+
+**The one part that is genuinely dual, not shared — the storage adapter.**
+Streamlit caches to the local filesystem (`data/cache/*.csv` + `@st.cache_data`);
+Vercel's filesystem is ephemeral and cannot. So the "backend" splits into:
+
+- **Shared pure compute** — one source of truth, both frontends import it.
+- **A cache/storage adapter** — an injected interface with **two
+  implementations**: the existing filesystem cache (`src/ingestion/cache.py`) for
+  Streamlit, and a Vercel KV (Upstash) implementation for the serverless
+  functions (Phase 3). `cache.py`'s 24h-freshness + stale-fallback contract is
+  the interface; only "where the bytes live" differs.
+
+**Consequences of choosing tandem:**
+
+- Phase 9.3 "Decommission Streamlit" is **dropped**. `app.py`, `.streamlit/`, and
+  `src/ui/*` are kept and maintained, not archived.
+- The migration is **de-risked**: no hard cutover. The live Streamlit app remains
+  the reference/fallback while the Vercel path is validated, and stays as a
+  second face afterward.
+- `CLAUDE.md`'s Hosting/Tech-stack sections get **extended** (add the
+  Vercel/Next.js face + the dual cache adapter), not rewritten to drop Streamlit.
+- Ongoing cost: two deploy targets, two URLs (no runtime conflict — each platform
+  builds only its half), and the cache adapter must be kept behind one interface
+  so the shared compute never imports a platform-specific store.
 
 ---
 
@@ -117,6 +183,21 @@ but headroom is thin and `curl_cffi` (a yfinance transitive dep) is a surprising
 **Action for Phase 2.3:** trim the deployed bundle (strip caches/tests, prefer
 slim wheels) and keep `streamlit`/`plotly`/`python-dotenv` out of the serverless
 requirements. Re-measure on a real Vercel build.
+
+### First Vercel deploy — app.py detection (resolved)
+
+The first real preview deploy failed at build:
+
+> Found app.py but it does not export a top-level "app", "application", or
+> "handler" variable … but found potential entrypoints: api/ping.py (variable:
+> handler).
+
+Vercel's Python runtime auto-detected the Streamlit **root `app.py`** as a
+web-app entrypoint. **Resolved** by adding `vercel.json` pinning the classic
+`@vercel/python` builder to `api/*.py` (disables zero-config detection of
+`app.py`) plus `api/requirements.txt` (slim serverless deps). This is exactly the
+single-root disambiguation called for by Decision 5. Re-deploy the preview after
+this commit.
 
 ### yfinance reachability — INCONCLUSIVE here, must verify on Vercel
 
@@ -157,21 +238,32 @@ request path, which also addresses the 10s Hobby timeout risk.
 
 ## Consequences
 
-- **Positive:** keep the entire tested processing layer; gain shareable URLs,
-  per-PR preview deploys, and edge caching; lose the single-server cost model.
+- **Positive:** keep the entire tested processing layer **and** the existing
+  Streamlit app; gain a second Vercel/Next.js frontend with shareable URLs,
+  per-PR preview deploys, and edge caching; no risky cutover.
 - **Negative / cost:** the UI rewrite (Phases 5–6) is the bulk of the effort;
-  `>10s` `maxDuration` needs Vercel Pro; we now depend on an external cache store.
-- **Open risk carried into Phase 1:** yfinance-from-Vercel is unproven (see
-  above). The first preview deploy of `api/ping.py` must close it before we
-  commit to the data path.
+  `>10s` `maxDuration` needs Vercel Pro; we now run two deploy targets and must
+  maintain the cache adapter behind one interface (filesystem + Vercel KV).
+- **Open risks carried into Phase 1:**
+  1. **yfinance-from-Vercel is unproven** — the next `api/ping.py` preview must
+     return a live `^GSPC` close before we commit to the data path.
+  2. **Slim-deps resolution unconfirmed** — verify on the next preview that the
+     function bundles `api/requirements.txt` (slim), not the fat root one. If the
+     builder only reads root `requirements.txt`, fall back to a `pyproject.toml`
+     dependency list for Vercel (which Streamlit Cloud ignores) or a build-time
+     prune step.
 
 ---
 
 ## Acceptance (Phase 0)
 
-- [x] **0.1** Architecture decisions locked in a committed ADR (this document).
+- [x] **0.1** Architecture decisions locked in a committed ADR (this document),
+      including the tandem dual-frontend end state (Decision 6).
 - [x] **0.2** Spike artifact (`api/ping.py`) written; bundle size measured
       (211 MB raw / 125 MB trimmed, under 250 MB).
-- [ ] **0.2 (requires Vercel)** Deploy `api/ping.py` to a preview; confirm it
-      returns 200 with a live `^GSPC` close. Blocked locally by container egress;
-      tracked as the first action of Phase 1.
+- [x] **0.2** First-deploy `app.py` detection error diagnosed and fixed
+      (`vercel.json` + `api/requirements.txt`).
+- [ ] **0.2 (requires Vercel)** Re-deploy the preview; confirm `/api/ping`
+      returns 200 with a live `^GSPC` close **and** the function bundle is slim
+      (no streamlit/plotly) and under the size limit. Blocked locally by
+      container egress; first action of Phase 1.

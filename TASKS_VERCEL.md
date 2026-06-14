@@ -320,6 +320,11 @@ Reproduce the "Brass and Verdigris on Paper" design from `src/ui/theme.py` and
   leakage, all features working.
 
 **9.3 Decommission Streamlit + update docs**
+- **AMENDED by ADR 0001 (Decision 6): tandem is the end state — do NOT
+  decommission Streamlit.** Keep `app.py`, `.streamlit/`, and `src/ui/*`; both
+  frontends run permanently over the shared backend. The steps below that take
+  Streamlit down / archive its UI no longer apply; the doc updates become
+  *extend* `CLAUDE.md` to add the Vercel face, not *replace* the Streamlit one.
 - Take down the Streamlit Community Cloud app (or leave a redirect). **Update
   `CLAUDE.md`** — the Hosting, Tech stack, Caching, and Design sections all
   describe Streamlit and must be rewritten for the Vercel/Next.js architecture.

@@ -1,0 +1,9 @@
+# Serverless (Vercel) dependency set — slim on purpose.
+# The @vercel/python builder installs the requirements.txt adjacent to the
+# function entrypoint, so this keeps streamlit/plotly out of the function bundle
+# (they live in the repo-root requirements.txt, which Streamlit Cloud uses).
+# Keep this list to what the /api functions actually import.
+pandas
+numpy
+requests
+yfinance
