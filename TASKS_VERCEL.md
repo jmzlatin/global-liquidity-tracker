@@ -67,7 +67,13 @@ recommended architecture and call out where the alternative diverges.
 
 ---
 
-## Phase 0: Decisions & spike (2 to 3 hours)
+## Phase 0: Decisions & spike (2 to 3 hours) — DONE (see `docs/adr/0001-vercel-migration.md`)
+
+Status: architecture decisions locked in ADR 0001; spike artifact `api/ping.py`
+written; bundle size measured locally (211 MB raw / 125 MB trimmed, under the
+250 MB limit). The one open item is the live yfinance-from-Vercel check, which
+requires a preview deploy and is carried into Phase 1 (this container's egress
+policy blocks the data-source hosts, so it cannot be validated locally).
 
 **0.1 Lock the architecture decisions**
 - Confirm frontend framework: **Next.js (App Router)** is the Vercel-native
