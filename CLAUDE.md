@@ -6,23 +6,47 @@ Persistent context for Claude Code. Read this before writing any code.
 
 A Streamlit app that pulls central bank balance sheet data and regional equity indices, aligns the two on a shared timeline, and renders the relationship as interactive dual-axis charts. The app loads fast and asks the user for almost no configuration. Pick a region, see the chart.
 
+**Dual-frontend (tandem).** The app runs as **two independent frontends over one
+shared Python backend, permanently** — the original Streamlit app *and* a
+Next.js/Vercel app. Both import the same pure `src/processing` + `src/ingestion`
+modules; a backend change affects both. This is a tandem architecture, **not** a
+migration/cutover — Streamlit is kept, not decommissioned. See
+`docs/adr/0001-vercel-migration.md` (the authority on this) and `TASKS_VERCEL.md`.
+
 ## Tech stack
 
+**Shared backend (both frontends use this):**
+
 - Python 3.11+
-- Streamlit for the UI
-- Plotly for interactive dual-axis charts and background shading
 - pandas + numpy for processing
 - requests for the FRED REST API
 - yfinance for equity index data
-- python-dotenv for secrets
 - pytest for tests
 - ruff for lint and format
 
-Alternative: Dash works too, but this repo targets Streamlit. Do not mix both.
+**Streamlit frontend:**
+
+- Streamlit for the UI
+- Plotly for interactive dual-axis charts and background shading
+- python-dotenv for secrets (local); `st.secrets` on Streamlit Cloud
+
+**Vercel/Next.js frontend:**
+
+- Next.js (App Router) + TypeScript
+- `react-plotly.js` for the charts (keep visual parity with the Streamlit Plotly figures)
+- Python serverless functions under `api/` that reuse the shared backend
+- Vercel KV (Upstash Redis) for the serverless cache; `os.environ` for secrets
+
+Do not mix Dash in. Within each frontend, do not introduce a second UI framework.
 
 ## Hosting
 
-Public GitHub repo deployed to Streamlit Community Cloud. The app entry point is `app.py` at the repo root. The FRED key goes in Streamlit Cloud secrets, not the repo.
+Two deploy targets, one repo, no runtime conflict — each platform builds only its half.
+
+- **Streamlit Community Cloud** — entry point `app.py` at the repo root; FRED key in Streamlit Cloud secrets.
+- **Vercel** — single-root project (Root Directory = repo root). `vercel.json` pins the `@vercel/python` builder to `api/*.py` so Vercel ignores the Streamlit `app.py`. FRED key + KV vars in Vercel env vars. The Next.js app and `api/` functions are the Vercel half.
+
+Neither key goes in the repo.
 
 ## Repo structure
 
@@ -30,18 +54,26 @@ Public GitHub repo deployed to Streamlit Community Cloud. The app entry point is
 global-liquidity-tracker/
   CLAUDE.md
   README.md
-  requirements.txt
+  requirements.txt       # FAT set — Streamlit Cloud installs from this
+  vercel.json            # pins @vercel/python to api/*.py; ignores app.py
   .env.example
   .gitignore
   .streamlit/
     config.toml          # theme
     secrets.toml         # local only, gitignored
   app.py                 # Streamlit entry, thin orchestration only
+  api/                   # Vercel Python serverless functions
+    requirements.txt     # SLIM set — serverless deps only (no streamlit/plotly)
+    ping.py              # Phase 0 feasibility spike (throwaway)
+    series.py            # main data endpoint (Phase 2; reuses src/)
+  web/                   # Next.js frontend (Phase 1+): app/, components/, lib/, styles/
   config/
     settings.py          # series IDs, tickers, crisis windows, palette, constants
   TASKS_UI.md            # UI elevation task plan
-  docs/                  # screenshots and supporting docs
-  src/
+  TASKS_VERCEL.md        # Vercel/Next.js frontend task plan
+  docs/
+    adr/                 # architecture decision records (0001 = tandem)
+  src/                   # SHARED backend — imported by BOTH frontends
     ingestion/
       fred_client.py     # FRED REST calls
       equity_client.py   # yfinance wrapper
@@ -70,6 +102,7 @@ global-liquidity-tracker/
 - The UI layer never calls an external API. UI calls processing, processing calls ingestion, ingestion calls the network.
 - `app.py` stays thin. No business logic in the entry file. Wire components and call into `src/`.
 - Each module does one job. Keep functions small and typed.
+- **`src/processing/*` and the pure parts of `src/ingestion/*` stay framework-free** — no `streamlit`, `plotly`, `st.*`, or Vercel/Next imports. This is what lets both frontends import them. The Streamlit-only code lives in `src/ui/*` and `app.py`; the Vercel-only code lives in `api/` and `web/`. Never import a frontend or a platform-specific store from the shared backend.
 
 ## Data sources
 
@@ -112,17 +145,29 @@ yfinance gotcha: recent versions return MultiIndex columns for single tickers. F
 FRED_API_KEY=your_key_here
 ```
 
-Load with python-dotenv locally. On Streamlit Cloud read from `st.secrets`. Never commit `.env` or `secrets.toml`. Add both to `.gitignore`.
+Load with python-dotenv locally. On Streamlit Cloud read from `st.secrets`. On Vercel read from `os.environ` (set `FRED_API_KEY` plus the KV connection vars in the Vercel project). The shared `fred_client` reads the key in a frontend-agnostic way; never hardcode a `st.secrets`-only path into the shared backend. Never commit `.env` or `secrets.toml`. Add both to `.gitignore`.
 
 ## Caching rules
 
 Goal: avoid FRED and yfinance rate limits and load instantly on repeat runs.
 
-- On startup, check `data/cache/` for the requested series file.
-- Store each series as a CSV plus a `manifest.json` recording `fetched_at` per series.
-- If `fetched_at` is under 24 hours old, read the local CSV. Skip the network.
-- If stale or missing, fetch, overwrite the CSV, update the manifest.
-- If a live fetch fails, fall back to the stale cache and surface a small warning in the UI. Never crash on a network error.
+The cache is the **one part of the backend that is genuinely dual, not shared**:
+the same 24h-freshness + stale-fallback *contract*, two *implementations* behind
+one interface (`fetched_at` freshness check, `stale` flag on fetch failure).
+Keep the contract identical so the shared compute never knows which store it got.
+
+- **Streamlit (filesystem store):**
+  - On startup, check `data/cache/` for the requested series file.
+  - Store each series as a CSV plus a `manifest.json` recording `fetched_at` per series.
+  - If `fetched_at` is under 24 hours old, read the local CSV. Skip the network.
+  - If stale or missing, fetch, overwrite the CSV, update the manifest.
+- **Vercel (Vercel KV / Upstash Redis store):** the serverless filesystem is
+  ephemeral and read-only outside `/tmp`, so the CSV/manifest design cannot work.
+  Use one KV key per series storing `{fetched_at, payload}`; same 24h freshness,
+  same refetch-on-stale, same stale-fallback.
+- **Both:** if a live fetch fails, fall back to the stale cached value and surface
+  a small warning (`st.warning` / a `stale: true` flag in the API payload). Never
+  crash on a network error.
 
 ## Processing rules
 
@@ -169,6 +214,13 @@ Fields: `cb_latest`, `cb_change_90d_pct`, `eq_latest`, `eq_change_90d_pct`, `reg
 
 The UI elevation pass is complete. The app now reads as a designed financial terminal on warm paper. Do not revert toward Streamlit defaults.
 
+**Both frontends share this design language.** The palette, typography, animations,
+and dual-axis/regime-shading look below are the source of truth for the Streamlit
+UI (`src/ui/*`, `.streamlit/config.toml`) *and* for the Vercel/Next.js UI, which
+reproduces them in CSS/Tailwind + `react-plotly.js` (Phase 6 of `TASKS_VERCEL.md`).
+Keep one Plotly template per frontend, mirroring the same palette — never set
+colors ad-hoc on either side.
+
 Palette "Brass and Verdigris on Paper":
 
 | Role | Hex |
@@ -209,21 +261,24 @@ Optional second theme: a dark "terminal" variant on `#16181D` with the same bras
 ## Commands
 
 ```bash
-# install
+# install (shared backend + Streamlit frontend)
 pip install -r requirements.txt
 
-# run locally
+# run the Streamlit frontend locally
 streamlit run app.py
 
-# tests
-pytest
+# run the Vercel frontend locally (Next.js + Python /api)
+vercel dev
 
-# lint and format
+# tests / lint (shared backend)
+pytest
 ruff check .
 ruff format .
 ```
 
-## requirements.txt
+## requirements.txt (two sets, single root)
+
+Root `requirements.txt` is the **fat** set — Streamlit Cloud installs from it:
 
 ```
 streamlit
@@ -235,6 +290,16 @@ yfinance
 python-dotenv
 pytest
 ruff
+```
+
+`api/requirements.txt` is the **slim** set — what the Vercel function bundles
+(keeps `streamlit`/`plotly` out of the serverless bundle):
+
+```
+pandas
+numpy
+requests
+yfinance
 ```
 
 ## Conventions

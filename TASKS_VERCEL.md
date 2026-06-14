@@ -1,7 +1,17 @@
 # TASKS_VERCEL.md
 
-Migration roadmap for moving the **Global Market Liquidity & Central Bank
-Tracker** off Streamlit Community Cloud and onto **Vercel**.
+> **AMENDED by `docs/adr/0001-vercel-migration.md` (the authority).** This is
+> **not** a move *off* Streamlit. The decision is **tandem**: add a Vercel/Next.js
+> frontend that runs **alongside** the kept Streamlit app, both over one shared
+> `src/` backend. Read this file as "build the Vercel frontend," not "replace
+> Streamlit." Where a phase below describes a cutover or decommission (esp.
+> Phase 9.3), the ADR overrides it. The Phase 1–8 build work is otherwise
+> unchanged. Repo layout is **single root** (Decision 5), not a `web/`-only
+> split, so both frontends import `src/` directly.
+
+Roadmap for building a **Vercel/Next.js frontend** for the **Global Market
+Liquidity & Central Bank Tracker**, running in tandem with the existing Streamlit
+app on a shared Python backend.
 
 Each task lists a goal, the files involved, an acceptance check, and a rough
 estimate. Estimates assume an experienced full-stack dev working with Claude
@@ -135,10 +145,14 @@ policy blocks the data-source hosts, so it cannot be validated locally).
 **2.1 Reuse the ingestion + processing layers**
 - Make `src/ingestion/fred_client.py`, `equity_client.py`, and all of
   `src/processing/*` importable from `api/`. Keep them framework-free (they
-  already are). Read `FRED_API_KEY` from `os.environ`, **drop the `st.secrets`
-  path**.
+  already are).
+- **TANDEM (amends original):** do **not** drop the `st.secrets` path —
+  Streamlit still uses it. `fred_client._get_api_key()` already tries
+  `st.secrets` then falls back to `os.environ`; that frontend-agnostic order is
+  exactly right and stays. On Vercel, `streamlit` isn't installed so the
+  `st.secrets` branch is skipped and `os.environ` is used.
 - Accept: a local script imports the clients and processing from inside `api/`
-  with no Streamlit dependency.
+  with no Streamlit installed (the import must not require `streamlit`).
 
 **2.2 The `/api/series` endpoint**
 - Implement a Vercel Python function that accepts `region`, `start`, `end`,
@@ -152,13 +166,20 @@ policy blocks the data-source hosts, so it cannot be validated locally).
 - Accept: `GET /api/series?region=United%20States` returns valid JSON for all
   three regions with non-empty series and a correlation block.
 
-**2.3 Trim `requirements.txt` for serverless**
-- New serverless requirements: `pandas`, `numpy`, `requests`, `yfinance`.
-  **Remove** `streamlit`, `plotly`, `python-dotenv` from the runtime set (Plotly
-  moves to the JS side; dotenv is replaced by Vercel env vars). Keep `pytest`,
-  `ruff` as dev-only.
-- Accept: serverless bundle builds with the trimmed deps and stays under the
-  size limit.
+**2.3 Slim serverless requirements (two-file split, not a trim)**
+- **TANDEM (amends original):** do **not** strip the root `requirements.txt` —
+  Streamlit Cloud installs from it and still needs `streamlit`/`plotly`/
+  `python-dotenv`. Instead the **slim** serverless set lives in
+  `api/requirements.txt` (`pandas`, `numpy`, `requests`, `yfinance`), already
+  added in Phase 0. The `@vercel/python` builder installs the requirements.txt
+  adjacent to the function entrypoint, so the Vercel bundle excludes
+  streamlit/plotly while the root stays fat.
+- **Verify the resolution on a preview** (open Phase 0.2 item): confirm the
+  function bundles `api/requirements.txt`, not the fat root one. If the builder
+  only reads root `requirements.txt`, fall back to a `pyproject.toml` dependency
+  list for Vercel (Streamlit Cloud ignores it) or a build-time prune.
+- Accept: serverless bundle builds with the slim deps and stays under the size
+  limit; the Streamlit app still installs and runs from the root requirements.
 
 ---
 
@@ -284,9 +305,12 @@ Reproduce the "Brass and Verdigris on Paper" design from `src/ui/theme.py` and
 
 **8.1 Keep the Python processing tests**
 - The existing `tests/` (cache, normalize, regimes, correlation, summary) still
-  cover the math. Update `test_cache.py` to target the new store-backed cache
-  (mock the store; no live network).
-- Accept: `pytest` passes against the ported modules.
+  cover the math.
+- **TANDEM (amends original):** **keep** the existing `test_cache.py` for the
+  filesystem store — Streamlit still uses it. **Add** a separate test for the new
+  KV-backed store (mock the store; no live network) rather than replacing the
+  filesystem one. Both implementations honor the same freshness/stale contract.
+- Accept: `pytest` passes for both cache implementations and the ported modules.
 
 **8.2 API contract test**
 - Add a test that calls the `/api/series` handler with mocked ingestion and
